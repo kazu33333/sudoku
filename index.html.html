@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="数独">
+<meta name="theme-color" content="#EAEFF6">
+<title>数独</title>
+<style>
+:root{
+  --bg:#EAEFF6;
+  --ink:#18213A;
+  --board:#FFFFFF;
+  --line:#CBD4E3;
+  --box:#18213A;
+  --peer:#E9EFFA;
+  --same:#C7DAFB;
+  --sel:#FFDE7A;
+  --user:#2A62E8;
+  --wrong:#D6334A;
+  --note:#6B7794;
+  --muted:#6B7794;
+  --tent:#E07B00;
+  --bs:max(250px, min(calc(100vw - 24px), calc(100vh - 310px - env(safe-area-inset-top) - env(safe-area-inset-bottom)), 480px));
+}
+@supports (height:100dvh){:root{--bs:max(250px, min(calc(100vw - 24px), calc(100dvh - 310px - env(safe-area-inset-top) - env(safe-area-inset-bottom)), 480px))}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:ui-rounded,"SF Pro Rounded","Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;
+  overscroll-behavior:none;-webkit-text-size-adjust:100%;
+}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+#app{
+  min-height:100vh;min-height:100dvh;max-width:520px;margin:0 auto;
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+  padding:calc(env(safe-area-inset-top) + 10px) 12px calc(env(safe-area-inset-bottom) + 10px);
+}
+header{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;
+  background:#fff;border:1px solid var(--line);border-radius:999px;font-weight:700;font-size:15px;
+}
+.chip svg{width:16px;height:16px}
+.chip[hidden]{display:none}
+.chip.tentchip{padding:0 12px;color:var(--tent);border-color:var(--tent);font-size:14px}
+.stats{display:flex;align-items:baseline;gap:10px;font-variant-numeric:tabular-nums;color:var(--muted);font-size:15px;font-weight:600}
+#timer{color:var(--ink);font-size:20px;font-weight:700;min-width:3.4ch;text-align:right}
+main{flex:1;width:100%;display:flex;align-items:center;justify-content:center}
+#board{
+  width:var(--bs);height:var(--bs);display:grid;
+  grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
+  background:var(--board);border:2px solid var(--box);border-radius:10px;overflow:hidden;
+  transition:opacity .15s;
+}
+body.busy #board{opacity:.35}
+.cell{
+  display:flex;align-items:center;justify-content:center;
+  font-size:calc(var(--bs) / 9 * .56);font-weight:500;color:var(--user);
+  background:var(--board);font-variant-numeric:tabular-nums;
+}
+.cell.given{color:var(--ink);font-weight:700}
+.cell.peer{background:var(--peer)}
+.cell.same{background:var(--same)}
+.cell.sel{background:var(--sel)}
+.cell.wrong{color:var(--wrong)}
+.nt{
+  width:100%;height:100%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  font-size:calc(var(--bs) / 9 * .25);font-weight:600;color:var(--note);line-height:1;
+}
+.nt i{font-style:normal;display:flex;align-items:center;justify-content:center}
+.nt.tn{font-size:calc(var(--bs) / 9 * .30);font-weight:700;color:var(--tent)}
+.nt.tn i.bad{color:var(--wrong)}
+#board.win .cell{animation:wave .7s ease both;animation-delay:calc(var(--d) * 45ms)}
+@keyframes wave{
+  0%{background:var(--board);transform:none}
+  40%{background:var(--sel);transform:scale(1.08)}
+  100%{background:var(--board);transform:none}
+}
+@media (prefers-reduced-motion:reduce){#board.win .cell{animation:none}}
+
+#tools{width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.tool{
+  height:56px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  font-size:11px;font-weight:700;
+}
+.tool svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tool:active{background:rgba(24,33,58,.08)}
+.tool.on{background:var(--ink);color:#fff}
+#tentBtn.on{background:var(--tent)}
+body.tentmode .key{color:var(--tent)}
+.tool:disabled{opacity:.35;pointer-events:none}
+
+#pad{width:100%;display:grid;grid-template-columns:repeat(9,1fr);gap:4px}
+.key{
+  height:60px;border-radius:10px;background:#fff;border:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  color:var(--user);font-size:26px;font-weight:700;line-height:1;
+}
+.key small{font-size:10px;font-weight:600;color:var(--muted);height:11px}
+.key:active{background:var(--same)}
+.key.off{opacity:.3;pointer-events:none}
+
+#entryHead{width:100%;display:none;align-items:center;justify-content:space-between;gap:8px}
+#entryCount{font-size:15px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.chip.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+#entryTools{width:100%;display:none;grid-template-columns:repeat(5,1fr);gap:4px}
+body.entering #gameHead{display:none}
+body.entering #entryHead{display:flex}
+body.entering #tools{display:none}
+body.entering #entryTools{display:grid}
+#toast{
+  position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);transform:translateX(-50%);
+  width:max-content;max-width:min(92vw,460px);background:var(--ink);color:#fff;padding:12px 16px;border-radius:14px;
+  font-size:14px;font-weight:600;line-height:1.5;text-align:center;z-index:20;box-shadow:0 6px 20px rgba(24,33,58,.25)
+}
+#toast[hidden]{display:none}
+.level.paper{background:#fff;border:1.5px dashed var(--line)}
+#pasteOverlay{align-items:flex-start}
+#pasteOverlay .sheet{border-radius:0 0 22px 22px;padding-top:calc(env(safe-area-inset-top) + 18px);padding-bottom:18px}
+#pasteText{
+  width:100%;height:96px;padding:10px 12px;resize:none;background:#fff;color:var(--ink);
+  border:1.5px solid var(--line);border-radius:12px;font:16px/1.4 ui-monospace,Menlo,monospace;
+  -webkit-appearance:none;appearance:none;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;
+}
+#pasteInfo{margin:0;font-size:14px;font-weight:600;color:var(--muted);min-height:20px}
+#pasteInfo.err{color:var(--wrong)}
+.overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(24,33,58,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10}
+.overlay[hidden]{display:none}
+.sheet{
+  width:100%;max-width:520px;background:#fff;border-radius:22px 22px 0 0;
+  padding:22px 18px calc(env(safe-area-inset-bottom) + 18px);display:flex;flex-direction:column;gap:10px;
+}
+.sheet h2{margin:0;font-size:22px}
+.sheet p{margin:0 0 6px;color:var(--muted);font-size:15px;font-variant-numeric:tabular-nums}
+.level{
+  height:54px;border-radius:14px;background:var(--bg);font-size:17px;font-weight:700;
+  display:flex;align-items:center;justify-content:space-between;padding:0 18px;
+}
+.level span{font-size:13px;font-weight:600;color:var(--muted)}
+.level:active{background:var(--same)}
+.ghost{height:48px;font-size:16px;font-weight:700;color:var(--user)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="gameHead">
+    <button class="chip" id="diffBtn" aria-label="新しいゲームを始める">
+      <span id="diffLabel">かんたん</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <button class="chip tentchip" id="tentChip" hidden aria-label="仮置きの数字をまとめて操作"><span id="tentChipLabel">仮置き 0</span></button>
+    <div class="stats"><span id="mistakes">ミス 0</span><span id="timer">00:00</span></div>
+  </header>
+
+  <div id="entryHead">
+    <button class="chip" id="entryCancel">キャンセル</button>
+    <span id="entryCount">入力 0マス</span>
+    <button class="chip primary" id="entryDone">解き始める</button>
+  </div>
+
+  <main><div id="board" role="grid" aria-label="数独の盤面"></div></main>
+
+  <div id="tools">
+    <button class="tool" id="undoBtn"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>元に戻す</button>
+    <button class="tool" id="eraseBtn"><svg viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>消す</button>
+    <button class="tool" id="noteBtn" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>メモ</button>
+    <button class="tool" id="tentBtn" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>仮置き</button>
+    <button class="tool" id="hintBtn"><svg viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>ヒント</button>
+  </div>
+
+  <div id="entryTools">
+    <button class="tool" id="eUndoBtn"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>元に戻す</button>
+    <button class="tool" id="eEraseBtn"><svg viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>消す</button>
+    <button class="tool" id="prevBtn"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>前のマス</button>
+    <button class="tool" id="nextBtn"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>次のマス</button>
+    <button class="tool" id="pasteBtn"><svg viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>貼り付け</button>
+  </div>
+
+  <div id="pad"></div>
+</div>
+
+<div class="overlay" id="tentOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h2 id="tentTitle">仮置き</h2>
+    <p>仮置きは1マスにいくつでも置けます。確定すると、数字が1つだけのマスが通常の数字になり、そのとき正誤が判定されます。</p>
+    <button class="level" id="tentConfirm">確定する<span>1つだけのマス</span></button>
+    <button class="level" id="tentDiscard">すべて破棄する<span>消去</span></button>
+    <button class="ghost" id="tentClose">閉じる</button>
+  </div>
+</div>
+
+<div class="overlay" id="pasteOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h2>81桁で貼り付け</h2>
+    <p>1〜9はそのまま、空白のマスは 0 か . で書きます。改行や空白は無視されます。</p>
+    <textarea id="pasteText" placeholder="530070000600195000098000060…" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+    <p id="pasteInfo">0 / 81文字</p>
+    <button class="level" id="pasteClip">クリップボードから貼り付け<span></span></button>
+    <button class="level" id="pasteApply">盤面に入力<span></span></button>
+    <button class="ghost" id="pasteClose">閉じる</button>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h2 id="sheetTitle">新しいゲーム</h2>
+    <p id="sheetSub">難易度を選んでください</p>
+    <button class="level" data-d="easy">かんたん<span>最初の数字 40</span></button>
+    <button class="level" data-d="medium">ふつう<span>最初の数字 33</span></button>
+    <button class="level" data-d="hard">むずかしい<span>最初の数字 28</span></button>
+    <button class="level" data-d="expert">達人<span>最初の数字 24</span></button>
+    <button class="level paper" id="paperBtn">紙のパズルを入力<span>手入力</span></button>
+    <button class="ghost" id="resumeBtn">続ける</button>
+  </div>
+</div>
+
+<script>
+// ==LOGIC-START==
+const R = [], C = [], B = [];
+for (let i = 0; i < 81; i++) { R[i] = (i / 9) | 0; C[i] = i % 9; B[i] = ((R[i] / 3) | 0) * 3 + ((C[i] / 3) | 0); }
+const PEERS = [];
+for (let i = 0; i < 81; i++) {
+  const a = [];
+  for (let j = 0; j < 81; j++) if (i !== j && (R[i] === R[j] || C[i] === C[j] || B[i] === B[j])) a.push(j);
+  PEERS.push(a);
+}
+function pc(x) { let n = 0; while (x) { x &= x - 1; n++; } return n; }
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+// Backtracking solver (fewest-candidates-first). Returns number of solutions found (up to `limit`) and the first one.
+function solve(g, limit, random) {
+  const a = Int8Array.from(g);
+  const rows = new Int16Array(9), cols = new Int16Array(9), boxes = new Int16Array(9);
+  for (let i = 0; i < 81; i++) if (a[i]) {
+    const bit = 1 << a[i];
+    if ((rows[R[i]] & bit) || (cols[C[i]] & bit) || (boxes[B[i]] & bit)) return { count: 0, sol: null };
+    rows[R[i]] |= bit; cols[C[i]] |= bit; boxes[B[i]] |= bit;
+  }
+  let count = 0, sol = null;
+  function rec() {
+    let best = -1, bestMask = 0, bestN = 10;
+    for (let i = 0; i < 81; i++) {
+      if (a[i]) continue;
+      const m = ~(rows[R[i]] | cols[C[i]] | boxes[B[i]]) & 0x3FE;
+      const n = pc(m);
+      if (n < bestN) { bestN = n; best = i; bestMask = m; if (n <= 1) break; }
+    }
+    if (best < 0) { count++; if (!sol) sol = Int8Array.from(a); return count >= limit; }
+    if (bestN === 0) return false;
+    const ds = [];
+    for (let d = 1; d <= 9; d++) if (bestMask & (1 << d)) ds.push(d);
+    if (random) shuffle(ds);
+    for (const d of ds) {
+      const bit = 1 << d;
+      a[best] = d; rows[R[best]] |= bit; cols[C[best]] |= bit; boxes[B[best]] |= bit;
+      const stop = rec();
+      rows[R[best]] &= ~bit; cols[C[best]] &= ~bit; boxes[B[best]] &= ~bit; a[best] = 0;
+      if (stop) return true;
+    }
+    return false;
+  }
+  rec();
+  return { count, sol };
+}
+
+const CLUES = { easy: 40, medium: 33, hard: 28, expert: 24 };
+const LABELS = { easy: 'かんたん', medium: 'ふつう', hard: 'むずかしい', expert: '達人', custom: '紙のパズル' };
+
+// Builds a full random grid, then removes cells in 180°-symmetric pairs while the solution stays unique.
+function generate(diff) {
+  const full = solve(new Int8Array(81), 1, true).sol;
+  const puz = Int8Array.from(full);
+  const target = CLUES[diff];
+  let clues = 81;
+  for (const i of shuffle([...Array(41).keys()])) {
+    if (clues <= target) break;
+    const j = 80 - i, vi = puz[i], vj = puz[j];
+    puz[i] = 0; puz[j] = 0;
+    if (solve(puz, 2, false).count !== 1) { puz[i] = vi; puz[j] = vj; }
+    else clues -= (i === j ? 1 : 2);
+  }
+  return { puz, sol: full };
+}
+// ==LOGIC-END==
+
+// ---------- UI ----------
+const $ = s => document.querySelector(s);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  probe() { try { localStorage.setItem('__p', '1'); localStorage.removeItem('__p'); return true; } catch (e) { return false; } }
+};
+const SAVE_KEY = 'sudoku-save-v1';
+
+let solution = [], given = [], grid = [], notes = [], tent = [];
+let sel = -1, noteMode = false, tentMode = false, history = [];
+let mistakes = 0, hints = 0, seconds = 0, difficulty = 'easy', done = false, ready = false;
+let entering = false, prevState = null;
+
+const cells = [];
+const board = $('#board');
+for (let i = 0; i < 81; i++) {
+  const el = document.createElement('div');
+  el.className = 'cell';
+  el.dataset.i = i;
+  el.setAttribute('role', 'gridcell');
+  el.style.borderLeft = C[i] === 0 ? '0' : (C[i] % 3 === 0 ? '2px solid var(--box)' : '1px solid var(--line)');
+  el.style.borderTop = R[i] === 0 ? '0' : (R[i] % 3 === 0 ? '2px solid var(--box)' : '1px solid var(--line)');
+  el.style.setProperty('--d', R[i] + C[i]);
+  board.appendChild(el);
+  cells.push(el);
+}
+board.addEventListener('pointerdown', e => {
+  const t = e.target.closest('.cell');
+  if (!t || done) return;
+  sel = +t.dataset.i;
+  render();
+});
+
+const pad = $('#pad');
+const keys = [];
+for (let d = 1; d <= 9; d++) {
+  const b = document.createElement('button');
+  b.className = 'key';
+  b.innerHTML = d + '<small></small>';
+  b.addEventListener('click', () => place(d));
+  pad.appendChild(b);
+  keys.push(b);
+}
+
+function fmt(s) { return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+
+function conflictSet() {
+  const bad = new Set();
+  for (let i = 0; i < 81; i++) {
+    if (!grid[i]) continue;
+    for (const p of PEERS[i]) if (grid[p] === grid[i]) { bad.add(i); break; }
+  }
+  return bad;
+}
+function onlyDigit(m) { for (let d = 1; d <= 9; d++) if (m === (1 << d)) return d; return 0; }
+function render() {
+  const sd = sel >= 0 ? (grid[sel] || onlyDigit(tent[sel] || 0)) : 0;
+  const peerSet = sel >= 0 ? new Set(PEERS[sel]) : null;
+  const dup = entering ? conflictSet() : null;
+  let tentCount = 0;
+  for (let i = 0; i < 81; i++) {
+    const el = cells[i], v = grid[i], tm = v ? 0 : (tent[i] || 0);
+    let cls = 'cell';
+    if (entering ? v : given[i]) cls += ' given';
+    if (tm) { cls += ' tent'; tentCount++; }
+    if (entering ? dup.has(i) : (v && !given[i] && v !== solution[i])) cls += ' wrong';
+    if (sel >= 0) {
+      if (i === sel) cls += ' sel';
+      else if (sd && (v === sd || (tm && ((tm >> sd) & 1)))) cls += ' same';
+      else if (peerSet.has(i)) cls += ' peer';
+    }
+    if (el.className !== cls) el.className = cls;
+    let html = '';
+    if (v) html = String(v);
+    else if (tm) {
+      html = '<div class="nt tn">';
+      for (let d = 1; d <= 9; d++) {
+        if ((tm >> d) & 1) {
+          const clash = PEERS[i].some(q => grid[q] === d || tent[q] === (1 << d));
+          html += '<i' + (clash ? ' class="bad"' : '') + '>' + d + '</i>';
+        } else html += '<i></i>';
+      }
+      html += '</div>';
+    } else if (notes[i]) {
+      html = '<div class="nt">';
+      for (let d = 1; d <= 9; d++) html += '<i>' + ((notes[i] >> d) & 1 ? d : '') + '</i>';
+      html += '</div>';
+    }
+    if (el._h !== html) { el.innerHTML = html; el._h = html; }
+  }
+  for (let d = 1; d <= 9; d++) {
+    let n = 0;
+    for (let i = 0; i < 81; i++) if (grid[i] === d && (entering || solution[i] === d)) n++;
+    const left = 9 - n;
+    keys[d - 1].classList.toggle('off', left <= 0);
+    keys[d - 1].querySelector('small').textContent = left > 0 ? left : '';
+  }
+  document.body.classList.toggle('entering', entering);
+  document.body.classList.toggle('tentmode', tentMode && !entering);
+  $('#undoBtn').disabled = history.length === 0;
+  $('#eUndoBtn').disabled = history.length === 0;
+  $('#noteBtn').classList.toggle('on', noteMode);
+  $('#noteBtn').setAttribute('aria-pressed', noteMode);
+  $('#tentBtn').classList.toggle('on', tentMode);
+  $('#tentBtn').setAttribute('aria-pressed', tentMode);
+  $('#tentChip').hidden = tentCount === 0 || entering;
+  $('#tentChipLabel').textContent = '仮置き ' + tentCount;
+  $('#tentTitle').textContent = '仮置き ' + tentCount + 'マス';
+  $('#diffLabel').textContent = LABELS[difficulty];
+  $('#entryCount').textContent = '入力 ' + grid.filter(Boolean).length + 'マス';
+  renderStats();
+}
+function renderStats() {
+  $('#mistakes').textContent = 'ミス ' + mistakes;
+  $('#timer').textContent = fmt(seconds);
+}
+
+function pushHistory() {
+  history.push({ g: grid.slice(), n: notes.slice(), t: tent.slice() });
+  if (history.length > 300) history.shift();
+}
+
+function place(d) {
+  if (sel < 0 || done || !ready) return;
+  if (entering) {
+    if (grid[sel] !== d) { pushHistory(); grid[sel] = d; }
+    if (sel < 80) sel++;
+    afterChange();
+    return;
+  }
+  if (given[sel]) return;
+  if (tentMode) {
+    if (grid[sel]) return;
+    pushHistory();
+    tent[sel] = (tent[sel] || 0) ^ (1 << d);
+  } else if (noteMode) {
+    if (grid[sel]) return;
+    pushHistory();
+    notes[sel] ^= (1 << d);
+  } else {
+    if (grid[sel] === d) return;
+    pushHistory();
+    grid[sel] = d;
+    notes[sel] = 0;
+    tent[sel] = 0;
+    if (d !== solution[sel]) mistakes++;
+    else for (const p of PEERS[sel]) notes[p] &= ~(1 << d);
+  }
+  afterChange();
+}
+function erase() {
+  if (sel < 0 || given[sel] || done || !ready) return;
+  if (!grid[sel] && !notes[sel] && !tent[sel]) return;
+  pushHistory();
+  if (!entering && tent[sel] && !grid[sel]) tent[sel] = 0;
+  else { grid[sel] = 0; notes[sel] = 0; }
+  afterChange();
+}
+function undo() {
+  if (!history.length || done) return;
+  const h = history.pop();
+  grid = h.g; notes = h.n; tent = h.t || new Array(81).fill(0);
+  afterChange();
+}
+function hint() {
+  if (done || !ready || entering) return;
+  let i = sel;
+  if (i < 0 || given[i] || grid[i] === solution[i]) {
+    const c = [];
+    for (let k = 0; k < 81; k++) if (grid[k] !== solution[k]) c.push(k);
+    if (!c.length) return;
+    i = c[Math.floor(Math.random() * c.length)];
+  }
+  pushHistory();
+  grid[i] = solution[i]; notes[i] = 0; tent[i] = 0; hints++; sel = i;
+  for (const p of PEERS[i]) notes[p] &= ~(1 << solution[i]);
+  afterChange();
+}
+function confirmTent() {
+  const targets = [];
+  for (let i = 0; i < 81; i++) {
+    const d = onlyDigit(tent[i] || 0);
+    if (d && !grid[i] && !given[i]) targets.push([i, d]);
+  }
+  if (!targets.length) { showToast('数字が1つだけの仮置きマスがありません。'); return; }
+  pushHistory();
+  for (const [i, d] of targets) {
+    tent[i] = 0; grid[i] = d; notes[i] = 0;
+    if (d !== solution[i]) mistakes++;
+  }
+  for (const [i, d] of targets) if (d === solution[i]) for (const q of PEERS[i]) notes[q] &= ~(1 << d);
+  afterChange();
+}
+function discardTent() {
+  if (!tent.some(Boolean)) return;
+  pushHistory();
+  tent = new Array(81).fill(0);
+  afterChange();
+}
+function afterChange() {
+  render();
+  if (entering) return;
+  save();
+  if (grid.every((v, i) => v === solution[i])) {
+    done = true;
+    save();
+    board.classList.add('win');
+    setTimeout(() => openSheet(true), 1100);
+  }
+}
+
+$('#undoBtn').addEventListener('click', undo);
+$('#eraseBtn').addEventListener('click', erase);
+$('#hintBtn').addEventListener('click', hint);
+$('#noteBtn').addEventListener('click', () => { noteMode = !noteMode; if (noteMode) tentMode = false; render(); });
+$('#tentBtn').addEventListener('click', () => { tentMode = !tentMode; if (tentMode) noteMode = false; render(); });
+
+// ---------- sheet ----------
+const overlay = $('#overlay');
+function openSheet(win) {
+  $('#sheetTitle').textContent = win ? 'クリア！' : '新しいゲーム';
+  $('#sheetSub').textContent = win
+    ? 'タイム ' + fmt(seconds) + ' / ミス ' + mistakes + ' / ヒント ' + hints
+    : '難易度を選んでください';
+  $('#resumeBtn').hidden = win || done;
+  overlay.hidden = false;
+}
+function closeSheet() { overlay.hidden = true; }
+$('#diffBtn').addEventListener('click', () => openSheet(false));
+$('#resumeBtn').addEventListener('click', closeSheet);
+overlay.addEventListener('pointerdown', e => { if (e.target === overlay && !done) closeSheet(); });
+const tentOverlay = $('#tentOverlay');
+$('#tentChip').addEventListener('click', () => { tentOverlay.hidden = false; });
+$('#tentClose').addEventListener('click', () => { tentOverlay.hidden = true; });
+$('#tentConfirm').addEventListener('click', () => { tentOverlay.hidden = true; confirmTent(); });
+$('#tentDiscard').addEventListener('click', () => { tentOverlay.hidden = true; discardTent(); });
+tentOverlay.addEventListener('pointerdown', e => { if (e.target === tentOverlay) tentOverlay.hidden = true; });
+overlay.querySelectorAll('.level[data-d]').forEach(b => b.addEventListener('click', () => { closeSheet(); startGame(b.dataset.d); }));
+
+// ---------- paper puzzle entry ----------
+let toastTimer = 0;
+function showToast(text) {
+  const t = $('#toast');
+  t.textContent = text;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 4500);
+}
+function startEntry() {
+  if (!ready) return;
+  prevState = { solution, given, grid, notes, tent, history, mistakes, hints, seconds, difficulty, done, noteMode, tentMode, sel };
+  solution = []; given = new Array(81).fill(false); grid = new Array(81).fill(0); notes = new Array(81).fill(0); tent = new Array(81).fill(0);
+  history = []; done = false; noteMode = false; tentMode = false; sel = 0; entering = true;
+  board.classList.remove('win');
+  render();
+}
+function cancelEntry() {
+  if (!entering) return;
+  ({ solution, given, grid, notes, tent, history, mistakes, hints, seconds, difficulty, done, noteMode, tentMode, sel } = prevState);
+  entering = false; prevState = null;
+  $('#toast').hidden = true;
+  render();
+  if (done) openSheet(true);
+}
+function finishEntry() {
+  if (!entering) return;
+  if (conflictSet().size) { showToast('同じ数字が重なっているマスがあります(赤いマス)。入力を確認してください。'); return; }
+  const r = solve(Int8Array.from(grid), 2, false);
+  if (r.count === 0) { showToast('この盤面は解けません。数字の入力間違いがないか確認してください。'); return; }
+  if (r.count > 1) { showToast('答えが複数あります。数字の入力漏れや間違いがないか確認してください。'); return; }
+  solution = Array.from(r.sol);
+  given = grid.map(v => v !== 0);
+  notes = new Array(81).fill(0);
+  history = []; mistakes = 0; hints = 0; seconds = 0; done = false; sel = -1; noteMode = false; tentMode = false; tent = new Array(81).fill(0);
+  difficulty = 'custom'; entering = false; prevState = null;
+  $('#toast').hidden = true;
+  render();
+  save();
+}
+// 81桁の文字列 → 盤面。1-9 は数字、0 . _ * ? ・ - は空白。空白・改行・| , / は無視。
+function parse81(text) {
+  const base = String(text).normalize('NFKC');
+  const passes = [
+    { strip: /[\s|,\/]+/g, ok: /^[0-9.*_?\u30fb-]$/ },
+    { strip: /[\s|,\/+=-]+/g, ok: /^[0-9.*_?\u30fb]$/ }   // 罫線入りの表を貼った場合
+  ];
+  let n1 = null, reason = 'length';
+  for (const p of passes) {
+    const chars = Array.from(base.replace(p.strip, ''));
+    if (n1 === null) n1 = chars.length;
+    if (!chars.every(c => p.ok.test(c))) { reason = 'char'; continue; }
+    if (chars.length !== 81) { if (reason !== 'char') reason = 'length'; continue; }
+    return { ok: true, cells: chars.map(c => /[1-9]/.test(c) ? +c : 0) };
+  }
+  return { ok: false, reason, n: n1 };
+}
+const pasteOverlay = $('#pasteOverlay'), pasteText = $('#pasteText'), pasteInfo = $('#pasteInfo');
+function updatePasteInfo(forceErr) {
+  const r = parse81(pasteText.value);
+  let err = false;
+  if (r.ok) pasteInfo.textContent = '81文字 OK(数字入りのマス ' + r.cells.filter(Boolean).length + ')';
+  else if (!pasteText.value.trim()) { pasteInfo.textContent = '0 / 81文字'; err = !!forceErr; }
+  else if (r.reason === 'char') { pasteInfo.textContent = '使えない文字があります(数字と . だけ使えます)'; err = true; }
+  else { pasteInfo.textContent = r.n + ' / 81文字'; err = r.n > 81 || !!forceErr; }
+  pasteInfo.classList.toggle('err', err);
+  return r;
+}
+pasteText.addEventListener('input', () => updatePasteInfo());
+$('#pasteBtn').addEventListener('click', () => { pasteOverlay.hidden = false; updatePasteInfo(); });
+$('#pasteClose').addEventListener('click', () => { pasteOverlay.hidden = true; });
+pasteOverlay.addEventListener('pointerdown', e => { if (e.target === pasteOverlay) pasteOverlay.hidden = true; });
+$('#pasteClip').addEventListener('click', async () => {
+  try {
+    pasteText.value = await navigator.clipboard.readText();
+    updatePasteInfo();
+  } catch (e) {
+    pasteInfo.textContent = 'クリップボードを読めませんでした。入力欄を長押しして貼り付けてください。';
+    pasteInfo.classList.add('err');
+  }
+});
+$('#pasteApply').addEventListener('click', () => {
+  const r = updatePasteInfo(true);
+  if (!r.ok || !entering) return;
+  pushHistory();
+  grid = r.cells.slice();
+  sel = 0;
+  pasteText.value = '';
+  pasteOverlay.hidden = true;
+  afterChange();
+  showToast(grid.filter(Boolean).length + 'マス入力しました。紙と見比べて、よければ「解き始める」を押してください。');
+});
+$('#paperBtn').addEventListener('click', () => { closeSheet(); startEntry(); });
+$('#entryCancel').addEventListener('click', cancelEntry);
+$('#entryDone').addEventListener('click', finishEntry);
+$('#eUndoBtn').addEventListener('click', undo);
+$('#eEraseBtn').addEventListener('click', erase);
+$('#prevBtn').addEventListener('click', () => { sel = sel > 0 ? sel - 1 : 0; render(); });
+$('#nextBtn').addEventListener('click', () => { sel = sel < 80 ? sel + 1 : 80; render(); });
+
+// ---------- game lifecycle ----------
+function startGame(diff) {
+  ready = false;
+  document.body.classList.add('busy');
+  setTimeout(() => {
+    const { puz, sol } = generate(diff);
+    difficulty = diff;
+    solution = Array.from(sol);
+    given = Array.from(puz, v => v !== 0);
+    grid = Array.from(puz);
+    notes = new Array(81).fill(0);
+    history = []; mistakes = 0; hints = 0; seconds = 0; done = false; sel = -1; noteMode = false; tentMode = false; tent = new Array(81).fill(0);
+    board.classList.remove('win');
+    document.body.classList.remove('busy');
+    ready = true;
+    render();
+    save();
+  }, 30);
+}
+
+let saveWarned = false;
+function save() {
+  if (!ready || entering) return;
+  const ok = store.set(SAVE_KEY, JSON.stringify({
+    v: 3, difficulty, solution, given, grid, notes, tent, mistakes, hints, seconds, done,
+    history: history.slice(-100), savedAt: Date.now()
+  }));
+  if (!ok && !saveWarned) { saveWarned = true; showToast('保存できませんでした。ブラウザの保存設定を確認してください。'); }
+}
+function load() {
+  try {
+    const s = JSON.parse(store.get(SAVE_KEY));
+    const ok = a => Array.isArray(a) && a.length === 81;
+    if (!s || !ok(s.solution) || !ok(s.given) || !ok(s.grid) || !ok(s.notes) || !LABELS[s.difficulty]) return null;
+    s.tent = ok(s.tent) ? s.tent : new Array(81).fill(0);
+    s.history = Array.isArray(s.history) ? s.history.filter(h => h && ok(h.g) && ok(h.n) && (!h.t || ok(h.t))) : [];
+    if (s.v !== 3) {   // 旧形式: 仮置きは「マスごとに数字1つ」→ ビットマスクに変換
+      const conv = a => a.map(m => (m >= 1 && m <= 9) ? (1 << m) : 0);
+      s.tent = conv(s.tent);
+      s.history = s.history.map(h => h.t ? { g: h.g, n: h.n, t: conv(h.t) } : h);
+    }
+    return s;
+  } catch (e) { return null; }
+}
+
+setInterval(() => {
+  if (ready && !done && !entering && !document.hidden && overlay.hidden && tentOverlay.hidden) {
+    seconds++;
+    renderStats();
+    if (seconds % 5 === 0) save();
+  }
+}, 1000);
+addEventListener('pagehide', save);
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+
+addEventListener('keydown', e => {
+  if (e.target && e.target.tagName === 'TEXTAREA') return;
+  if (!overlay.hidden || !tentOverlay.hidden || !pasteOverlay.hidden) return;
+  if (e.key >= '1' && e.key <= '9') place(+e.key);
+  else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') erase();
+  else if ((e.key === 'n' || e.key === 'N') && !entering) { noteMode = !noteMode; if (noteMode) tentMode = false; render(); }
+  else if ((e.key === 't' || e.key === 'T') && !entering) { tentMode = !tentMode; if (tentMode) noteMode = false; render(); }
+  else if ((e.key === 'z' || e.key === 'Z') && (e.metaKey || e.ctrlKey)) undo();
+  else if (e.key.startsWith('Arrow')) {
+    e.preventDefault();
+    if (sel < 0) sel = 40;
+    else if (e.key === 'ArrowUp' && R[sel] > 0) sel -= 9;
+    else if (e.key === 'ArrowDown' && R[sel] < 8) sel += 9;
+    else if (e.key === 'ArrowLeft' && C[sel] > 0) sel -= 1;
+    else if (e.key === 'ArrowRight' && C[sel] < 8) sel += 1;
+    render();
+  }
+});
+
+const saved = load();
+if (saved && !saved.done) {
+  difficulty = saved.difficulty; solution = saved.solution; given = saved.given;
+  grid = saved.grid; notes = saved.notes; tent = saved.tent; history = saved.history; mistakes = saved.mistakes | 0; hints = saved.hints | 0; seconds = saved.seconds | 0;
+  ready = true;
+  render();
+} else {
+  startGame(saved && CLUES[saved.difficulty] ? saved.difficulty : 'easy');
+}
+if (!store.probe()) { saveWarned = true; showToast('このブラウザでは自動保存が使えません(プライベートブラウズ中など)。'); }
+</script>
+</body>
+</html>
